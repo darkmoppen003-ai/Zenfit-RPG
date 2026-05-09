@@ -4461,11 +4461,40 @@ function exportDataFile(){
     var filename =
       'zenfit_backup_' + getTodayStr() + '.json';
 
-    // BASE64 ENCODE
+    // ANDROID INTENT METHOD (NO STORAGE PERMISSION NEEDED)
+    if(window.Android && typeof window.Android.shareText === 'function'){
+      try{
+        window.Android.shareText(json, filename);
+        showNotif('Shared to Android Intent!','OK');
+        return;
+      }catch(e){
+        console.log('Android Intent failed, trying fallback');
+      }
+    }
+
+    // WEB SHARE API (Modern Android/iOS)
+    if(navigator.share){
+      var blob = new Blob([json], {type: 'application/json'});
+      var file = new File([blob], filename, {type: 'application/json'});
+      navigator.share({
+        files: [file],
+        title: 'ZenFit Backup',
+        text: 'ZenFit fitness data backup'
+      }).then(function(){
+        showNotif('Backup shared!','OK');
+      }).catch(function(e){
+        if(e.name !== 'AbortError'){
+          console.log('Web Share failed:', e);
+          exportFallbackMethod(json, filename);
+        }
+      });
+      return;
+    }
+
+    // BASE64 DOWNLOAD (Fallback for desktop/compatible browsers)
     var encoded =
       btoa(unescape(encodeURIComponent(json)));
 
-    // SIMPLE DOWNLOAD LINK
     var link = document.createElement('a');
 
     link.href =
@@ -4483,23 +4512,72 @@ function exportDataFile(){
 
   }catch(err){
 
-    console.error(err);
-
-    // FINAL FALLBACK
-    try{
-
-      navigator.clipboard.writeText(json);
-
-      showNotif('Copied to clipboard','OK');
-
-    }catch(e){
-
-      alert('Export failed');
-
-    }
+    console.error('Export error:', err);
+    exportFallbackMethod(JSON.stringify(S, null, 2), 'zenfit_backup_' + getTodayStr() + '.json');
 
   }
 
+}
+
+function exportFallbackMethod(json, filename){
+  // CLIPBOARD FALLBACK
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(json).then(function(){
+      showNotif('✓ Copied to clipboard (paste to email or notes)','OK');
+    }).catch(function(){
+      showExportModal(json);
+    });
+  } else {
+    // FINAL FALLBACK: Modal with manual copy
+    showExportModal(json);
+  }
+}
+
+function showExportModal(json){
+  var overlay=document.createElement('div');
+  overlay.id='export-modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#161a27;border-radius:14px;padding:20px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column';
+  var title=document.createElement('div');
+  title.style.cssText='font-size:14px;font-weight:700;color:#e2e8f8;margin-bottom:12px';
+  title.textContent='📋 Your ZenFit Backup Data';
+  var subtitle=document.createElement('div');
+  subtitle.style.cssText='font-size:11px;color:#8a94b8;margin-bottom:16px;line-height:1.4';
+  subtitle.textContent='Copy this data and paste it into: Email, Notes, Google Drive, Dropbox, or any cloud storage app';
+  var ta=document.createElement('textarea');
+  ta.id='export-json-ta';
+  ta.style.cssText='flex:1;min-height:200px;font-size:10px;font-family:monospace;background:#0d0f14;color:#4cdb8a;border:1px solid #2a3050;border-radius:8px;padding:10px;resize:none;margin-bottom:12px';
+  ta.value=json;
+  ta.readOnly=false;
+  var btns=document.createElement('div');
+  btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+  var copyBtn=document.createElement('button');
+  copyBtn.style.cssText='flex:1;min-width:120px;padding:12px;background:#7c6fff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  copyBtn.textContent='📋 Copy All';
+  copyBtn.onclick=function(){
+    ta.select();ta.setSelectionRange(0,99999);
+    try{document.execCommand('copy');showNotif('✓ Copied to clipboard!','OK');}
+    catch(e){showNotif('Select & copy manually','!');}
+  };
+  var shareBtn=document.createElement('button');
+  shareBtn.style.cssText='flex:1;min-width:120px;padding:12px;background:#4cdb8a;color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  shareBtn.textContent='📤 Share';
+  shareBtn.onclick=function(){
+    if(navigator.share){
+      navigator.share({text:json,title:'ZenFit Backup'}).catch(function(){});
+    } else {
+      showNotif('Share not available - use Copy instead','!');
+    }
+  };
+  var closeBtn=document.createElement('button');
+  closeBtn.style.cssText='flex:1;min-width:80px;padding:12px;background:#2a3050;color:#e2e8f8;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  closeBtn.textContent='Close';
+  closeBtn.onclick=function(){var m=document.getElementById('export-modal');if(m)m.remove();};
+  btns.appendChild(copyBtn);btns.appendChild(shareBtn);btns.appendChild(closeBtn);
+  box.appendChild(title);box.appendChild(subtitle);box.appendChild(ta);box.appendChild(btns);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
 }
 initTheme();
 persistLoad();
