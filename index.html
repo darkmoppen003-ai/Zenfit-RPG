@@ -4453,129 +4453,257 @@ function importData(){
 }
 
 function exportDataFile(){
-
   try{
-
     var json = JSON.stringify(S, null, 2);
-
-    var filename =
-      'zenfit_backup_' + getTodayStr() + '.json';
-
-    // ANDROID INTENT METHOD (NO STORAGE PERMISSION NEEDED)
-    if(window.Android && typeof window.Android.shareText === 'function'){
-      try{
-        window.Android.shareText(json, filename);
-        showNotif('Shared to Android Intent!','OK');
-        return;
-      }catch(e){
-        console.log('Android Intent failed, trying fallback');
-      }
-    }
-
-    // WEB SHARE API (Modern Android/iOS)
-    if(navigator.share){
-      var blob = new Blob([json], {type: 'application/json'});
-      var file = new File([blob], filename, {type: 'application/json'});
-      navigator.share({
-        files: [file],
-        title: 'ZenFit Backup',
-        text: 'ZenFit fitness data backup'
-      }).then(function(){
-        showNotif('Backup shared!','OK');
-      }).catch(function(e){
-        if(e.name !== 'AbortError'){
-          console.log('Web Share failed:', e);
-          exportFallbackMethod(json, filename);
-        }
-      });
+    var filename = 'zenfit_backup_' + getTodayStr() + '.json';
+    
+    // Check if data is too large for clipboard
+    var dataSize = new Blob([json]).size;
+    var MAX_CLIPBOARD_SIZE = 800000; // 800KB (safe limit for Android clipboard)
+    
+    if(dataSize > MAX_CLIPBOARD_SIZE){
+      showNotif('⚠️ Data too large for clipboard (' + Math.round(dataSize/1024) + 'KB). Using text display instead.','!');
+      showLargeDataModal(json, filename, dataSize);
       return;
     }
-
-    // BASE64 DOWNLOAD (Fallback for desktop/compatible browsers)
-    var encoded =
-      btoa(unescape(encodeURIComponent(json)));
-
-    var link = document.createElement('a');
-
-    link.href =
-      'data:application/json;base64,' + encoded;
-
-    link.download = filename;
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-
-    showNotif('Backup exported!','OK');
-
+    
+    // Try to open file with external app via data URL
+    var dataUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
+    
+    // METHOD 1: Try opening in external app
+    try{
+      // This tries to trigger Android's "open with" dialog
+      var link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      // Try to trigger native download dialog
+      var event = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      link.dispatchEvent(event);
+      
+      setTimeout(function(){
+        try { document.body.removeChild(link); } catch(e){}
+      }, 1000);
+      
+      showNotif('Download started - check downloads folder','OK');
+      return;
+    }catch(e1){
+      console.log('Download method failed:', e1);
+    }
+    
+    // METHOD 2: Fallback to clipboard with chunking for large data
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(json).then(function(){
+        showNotif('✓ Full data copied to clipboard!','OK');
+      }).catch(function(clipErr){
+        console.log('Clipboard failed:', clipErr);
+        // METHOD 3: Show modal with data
+        showExportModal(json, filename, dataSize);
+      });
+    } else {
+      // METHOD 4: Modal fallback
+      showExportModal(json, filename, dataSize);
+    }
+    
   }catch(err){
-
     console.error('Export error:', err);
-    exportFallbackMethod(JSON.stringify(S, null, 2), 'zenfit_backup_' + getTodayStr() + '.json');
-
-  }
-
-}
-
-function exportFallbackMethod(json, filename){
-  // CLIPBOARD FALLBACK
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(json).then(function(){
-      showNotif('✓ Copied to clipboard (paste to email or notes)','OK');
-    }).catch(function(){
-      showExportModal(json);
-    });
-  } else {
-    // FINAL FALLBACK: Modal with manual copy
-    showExportModal(json);
+    showNotif('Error during export','!');
   }
 }
 
-function showExportModal(json){
+function showLargeDataModal(json, filename, dataSize){
   var overlay=document.createElement('div');
   overlay.id='export-modal';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+  
   var box=document.createElement('div');
-  box.style.cssText='background:#161a27;border-radius:14px;padding:20px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column';
+  box.style.cssText='background:#161a27;border-radius:14px;padding:20px;width:100%;max-width:600px;display:flex;flex-direction:column';
+  
+  var title=document.createElement('div');
+  title.style.cssText='font-size:16px;font-weight:700;color:#e2e8f8;margin-bottom:8px';
+  title.innerHTML='⚠️ Data Too Large for Clipboard';
+  
+  var sizeInfo=document.createElement('div');
+  sizeInfo.style.cssText='font-size:12px;color:#f5c4b3;margin-bottom:16px;background:#2a3050;padding:12px;border-radius:8px';
+  sizeInfo.innerHTML='Your backup is ' + Math.round(dataSize/1024) + 'KB (clipboard limit: ~800KB).<br>Please use one of the methods below:';
+  
+  var methods=document.createElement('div');
+  methods.style.cssText='display:flex;flex-direction:column;gap:12px;margin-bottom:16px';
+  
+  // Method 1: Email
+  var emailDiv=document.createElement('div');
+  emailDiv.style.cssText='background:#2a3050;padding:12px;border-radius:8px;border-left:3px solid #7c6fff';
+  emailDiv.innerHTML='<div style="font-weight:600;color:#e2e8f8;margin-bottom:6px;font-size:13px">📧 Method 1: Email to Yourself</div>' +
+    '<div style="font-size:11px;color:#8a94b8;margin-bottom:8px">Click button below to compose email with backup attached</div>' +
+    '<button onclick="emailBackup(' + "'" + filename + "'" + ')" style="background:#7c6fff;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;font-weight:600">Send Email</button>';
+  methods.appendChild(emailDiv);
+  
+  // Method 2: Display in textarea
+  var textDiv=document.createElement('div');
+  textDiv.style.cssText='background:#2a3050;padding:12px;border-radius:8px;border-left:3px solid #4cdb8a';
+  textDiv.innerHTML='<div style="font-weight:600;color:#e2e8f8;margin-bottom:6px;font-size:13px">📋 Method 2: Copy Text & Paste to Cloud</div>' +
+    '<div style="font-size:11px;color:#8a94b8;margin-bottom:8px">Copy the JSON below, then paste into Google Drive (create text file), Dropbox, or Notes app</div>' +
+    '<button onclick="selectAllAndCopy()" style="background:#4cdb8a;color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;font-weight:600">Select All & Copy</button>';
+  methods.appendChild(textDiv);
+  
+  // Method 3: Download (if available)
+  var downloadDiv=document.createElement('div');
+  downloadDiv.style.cssText='background:#2a3050;padding:12px;border-radius:8px;border-left:3px solid #EF9F27';
+  downloadDiv.innerHTML='<div style="font-weight:600;color:#e2e8f8;margin-bottom:6px;font-size:13px">⬇️ Method 3: Try Direct Download</div>' +
+    '<div style="font-size:11px;color:#8a94b8;margin-bottom:8px">Download as file to your device (may require storage permission)</div>' +
+    '<button onclick="forceDownloadLargeFile(' + "'" + json.replace(/'/g, "\\'") + "'" + ',' + "'" + filename + "'" + ')" style="background:#EF9F27;color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:12px;cursor:pointer;font-weight:600">Download File</button>';
+  methods.appendChild(downloadDiv);
+  
+  // The textarea (scrollable, but hidden initially)
+  var ta=document.createElement('textarea');
+  ta.id='export-json-ta-large';
+  ta.style.cssText='width:100%;height:200px;font-size:10px;font-family:monospace;background:#0d0f14;color:#4cdb8a;border:1px solid #2a3050;border-radius:8px;padding:10px;resize:vertical;margin-bottom:12px;display:none';
+  ta.value=json;
+  ta.readOnly=true;
+  methods.appendChild(ta);
+  
+  var closeBtn=document.createElement('button');
+  closeBtn.style.cssText='padding:10px;background:#2a3050;color:#e2e8f8;border:none;border-radius:8px;cursor:pointer;font-weight:600';
+  closeBtn.textContent='Close';
+  closeBtn.onclick=function(){var m=document.getElementById('export-modal');if(m)m.remove();};
+  
+  box.appendChild(title);
+  box.appendChild(sizeInfo);
+  box.appendChild(methods);
+  box.appendChild(ta);
+  box.appendChild(closeBtn);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
+
+function selectAllAndCopy(){
+  var ta = document.getElementById('export-json-ta-large');
+  if(!ta){
+    showNotif('Textarea not found','!');
+    return;
+  }
+  ta.style.display='block';
+  ta.select();
+  try{
+    document.execCommand('copy');
+    showNotif('✓ Data copied to clipboard!','OK');
+    ta.style.display='none';
+  }catch(e){
+    showNotif('Failed to copy - please select manually','!');
+  }
+}
+
+function forceDownloadLargeFile(json, filename){
+  try{
+    var blob = new Blob([json], {type:'application/json'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);}, 100);
+    showNotif('Download started!','OK');
+  }catch(e){
+    showNotif('Download failed: ' + e.message,'!');
+  }
+}
+
+function emailBackup(filename){
+  var json = JSON.stringify(S, null, 2);
+  var subject = 'ZenFit Backup - ' + getTodayStr();
+  var body = 'ZenFit Data Backup:\n\n' + json;
+  
+  // mailto: with inline data
+  var mailtoLink = 'mailto:?subject=' + encodeURIComponent(subject) + 
+                   '&body=' + encodeURIComponent(body.substring(0, 20000)); // Limit to avoid URL length issues
+  
+  try{
+    window.location.href = mailtoLink;
+    showNotif('Opening email app...','OK');
+  }catch(e){
+    showNotif('Could not open email app','!');
+  }
+}
+
+function showExportModal(json, filename, dataSize){
+  var overlay=document.createElement('div');
+  overlay.id='export-modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;overflow-y:auto';
+  
+  var box=document.createElement('div');
+  box.style.cssText='background:#161a27;border-radius:14px;padding:20px;width:100%;max-width:550px;display:flex;flex-direction:column';
+  
   var title=document.createElement('div');
   title.style.cssText='font-size:14px;font-weight:700;color:#e2e8f8;margin-bottom:12px';
   title.textContent='📋 Your ZenFit Backup Data';
+  
   var subtitle=document.createElement('div');
   subtitle.style.cssText='font-size:11px;color:#8a94b8;margin-bottom:16px;line-height:1.4';
-  subtitle.textContent='Copy this data and paste it into: Email, Notes, Google Drive, Dropbox, or any cloud storage app';
-  var ta=document.createElement('textarea');
-  ta.id='export-json-ta';
-  ta.style.cssText='flex:1;min-height:200px;font-size:10px;font-family:monospace;background:#0d0f14;color:#4cdb8a;border:1px solid #2a3050;border-radius:8px;padding:10px;resize:none;margin-bottom:12px';
-  ta.value=json;
-  ta.readOnly=false;
-  var btns=document.createElement('div');
-  btns.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+  if(dataSize){
+    subtitle.textContent='Backup size: ' + Math.round(dataSize/1024) + 'KB. Choose a save method:';
+  }else{
+    subtitle.textContent='Copy this data and save it safely somewhere';
+  }
+  
+  var btnRow=document.createElement('div');
+  btnRow.style.cssText='display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;justify-content:space-between';
+  
   var copyBtn=document.createElement('button');
-  copyBtn.style.cssText='flex:1;min-width:120px;padding:12px;background:#7c6fff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  copyBtn.style.cssText='flex:1;min-width:100px;padding:10px;background:#4cdb8a;color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
   copyBtn.textContent='📋 Copy All';
   copyBtn.onclick=function(){
-    ta.select();ta.setSelectionRange(0,99999);
-    try{document.execCommand('copy');showNotif('✓ Copied to clipboard!','OK');}
-    catch(e){showNotif('Select & copy manually','!');}
-  };
-  var shareBtn=document.createElement('button');
-  shareBtn.style.cssText='flex:1;min-width:120px;padding:12px;background:#4cdb8a;color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
-  shareBtn.textContent='📤 Share';
-  shareBtn.onclick=function(){
-    if(navigator.share){
-      navigator.share({text:json,title:'ZenFit Backup'}).catch(function(){});
-    } else {
-      showNotif('Share not available - use Copy instead','!');
+    var ta = document.getElementById('export-json-ta');
+    if(ta){
+      ta.select();
+      try{
+        document.execCommand('copy');
+        showNotif('✓ Copied!','OK');
+      }catch(e){}
     }
   };
+  
+  var emailBtn=document.createElement('button');
+  emailBtn.style.cssText='flex:1;min-width:100px;padding:10px;background:#7c6fff;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  emailBtn.textContent='📧 Email';
+  emailBtn.onclick=function(){
+    emailBackup(filename);
+  };
+  
+  var dlBtn=document.createElement('button');
+  dlBtn.style.cssText='flex:1;min-width:100px;padding:10px;background:#EF9F27;color:#000;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  dlBtn.textContent='⬇️ Download';
+  dlBtn.onclick=function(){
+    forceDownloadLargeFile(json, filename);
+  };
+  
+  btnRow.appendChild(copyBtn);
+  btnRow.appendChild(emailBtn);
+  btnRow.appendChild(dlBtn);
+  
+  var ta=document.createElement('textarea');
+  ta.id='export-json-ta';
+  ta.style.cssText='width:100%;height:200px;font-size:10px;font-family:monospace;background:#0d0f14;color:#4cdb8a;border:1px solid #2a3050;border-radius:8px;padding:10px;resize:vertical;margin-bottom:12px';
+  ta.value=json;
+  ta.readOnly=true;
+  
   var closeBtn=document.createElement('button');
-  closeBtn.style.cssText='flex:1;min-width:80px;padding:12px;background:#2a3050;color:#e2e8f8;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
+  closeBtn.style.cssText='padding:10px;background:#2a3050;color:#e2e8f8;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px';
   closeBtn.textContent='Close';
   closeBtn.onclick=function(){var m=document.getElementById('export-modal');if(m)m.remove();};
-  btns.appendChild(copyBtn);btns.appendChild(shareBtn);btns.appendChild(closeBtn);
-  box.appendChild(title);box.appendChild(subtitle);box.appendChild(ta);box.appendChild(btns);
+  
+  box.appendChild(title);
+  box.appendChild(subtitle);
+  box.appendChild(btnRow);
+  box.appendChild(ta);
+  box.appendChild(closeBtn);
   overlay.appendChild(box);
   document.body.appendChild(overlay);
 }
