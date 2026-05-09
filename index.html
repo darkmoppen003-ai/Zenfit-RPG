@@ -4451,7 +4451,7 @@ function importData(){
   inp.click();
 }
 
-async function exportDataFile(){
+function exportDataFile(){
 
   try{
 
@@ -4460,71 +4460,29 @@ async function exportDataFile(){
     var filename =
       'zenfit_backup_' + getTodayStr() + '.json';
 
-    // CREATE FILE
-    var blob = new Blob(
-      [json],
-      { type:'application/json' }
-    );
+    // BASE64 ENCODE
+    var encoded =
+      btoa(unescape(encodeURIComponent(json)));
 
-    // MOBILE SHARE (BEST FOR APPSGEYSER)
-    try{
+    // SIMPLE DOWNLOAD LINK
+    var link = document.createElement('a');
 
-      var file = new File(
-        [blob],
-        filename,
-        { type:'application/json' }
-      );
+    link.href =
+      'data:application/json;base64,' + encoded;
 
-      if(
-        navigator.canShare &&
-        navigator.canShare({ files:[file] })
-      ){
+    link.download = filename;
 
-        await navigator.share({
-          title:'ZenFit Backup',
-          text:'ZenFit JSON Backup',
-          files:[file]
-        });
+    document.body.appendChild(link);
 
-        showNotif('Backup shared!','OK');
+    link.click();
 
-        return;
-      }
+    document.body.removeChild(link);
 
-    }catch(shareErr){
-      console.log('Share failed', shareErr);
-    }
+    showNotif('Backup exported!','OK');
 
-    // BROWSER DOWNLOAD FALLBACK
-    try{
+  }catch(err){
 
-      var url = URL.createObjectURL(blob);
-
-      var a = document.createElement('a');
-
-      a.href = url;
-
-      a.download = filename;
-
-      a.style.display = 'none';
-
-      document.body.appendChild(a);
-
-      a.click();
-
-      document.body.removeChild(a);
-
-      setTimeout(function(){
-        URL.revokeObjectURL(url);
-      },2000);
-
-      showNotif('Download started!','OK');
-
-      return;
-
-    }catch(downloadErr){
-      console.log(downloadErr);
-    }
+    console.error(err);
 
     // FINAL FALLBACK
     try{
@@ -4533,17 +4491,11 @@ async function exportDataFile(){
 
       showNotif('Copied to clipboard','OK');
 
-    }catch(copyErr){
+    }catch(e){
 
       alert('Export failed');
 
     }
-
-  }catch(err){
-
-    console.error(err);
-
-    alert('Export failed');
 
   }
 
