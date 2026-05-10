@@ -4596,7 +4596,7 @@ function exportDataFileBrowser(){
   }
 }
 
-// METHOD 3: ANDROID EXPORT (Opens export.html page)
+// METHOD 3: ANDROID EXPORT (Opens in system browser)
 function exportDataFileAndroid(){
   try{
     const encoded =
@@ -4606,8 +4606,10 @@ function exportDataFileAndroid(){
     const url =
       "https://darkmoppen003-ai.github.io/zenfit/export.html?data="
       + encoded;
-    window.open(url, "_blank");
-    showNotif('Opening export page...', 'OK');
+    
+    // Use '_system' to open in external system browser (Chrome)
+    window.open(url, '_system');
+    showNotif('Opening in Chrome...', 'OK');
   }catch(err){
     showNotif('Export error: ' + err.message, '!');
     exportDataFileManual();
