@@ -4596,90 +4596,22 @@ function exportDataFileBrowser(){
   }
 }
 
-// METHOD 3: ANDROID EXPORT (Uses localStorage to pass data - more reliable)
+// METHOD 3: ANDROID EXPORT (Opens export.html page)
 function exportDataFileAndroid(){
   try{
-    var json = JSON.stringify(S, null, 2);
-    var filename = 'zenfit_backup_' + getTodayStr() + '.json';
-    
-    // Store the data in localStorage temporarily
-    localStorage.setItem('_export_data', json);
-    localStorage.setItem('_export_filename', filename);
-    localStorage.setItem('_export_flag', 'true');
-    
-    // Create a simple URL (no data in URL, just a flag)
-    var exportUrl = window.location.origin + window.location.pathname + '?export_action=download';
-    
-    // Open in new browser tab
-    window.open(exportUrl, '_blank');
-    
-    showNotif('Opening browser for export...', 'OK');
-    
-    // Clear flag after 10 seconds (in case user cancels)
-    setTimeout(function(){
-      localStorage.removeItem('_export_flag');
-    }, 10000);
-    
+    const encoded =
+      encodeURIComponent(
+        JSON.stringify(S)
+      );
+    const url =
+      "https://darkmoppen003-ai.github.io/zenfit/export.html?data="
+      + encoded;
+    window.open(url, "_blank");
+    showNotif('Opening export page...', 'OK');
   }catch(err){
-    showNotif('Android export error: ' + err.message, '!');
+    showNotif('Export error: ' + err.message, '!');
     exportDataFileManual();
   }
-}
-
-// Handle export when page loads with ?export_action= parameter
-function handleExportParameter(){
-  var urlParams = new URLSearchParams(window.location.search);
-  var exportAction = urlParams.get('export_action');
-  
-  if(exportAction === 'download'){
-    // Check if data is in localStorage
-    var exportData = localStorage.getItem('_export_data');
-    var filename = localStorage.getItem('_export_filename') || 'zenfit_backup.json';
-    var exportFlag = localStorage.getItem('_export_flag');
-    
-    if(exportData && exportFlag){
-      try{
-        // Create blob and download
-        var blob = new Blob([exportData], {type: 'application/json'});
-        var url = URL.createObjectURL(blob);
-        
-        var link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.click();
-        
-        // Clean up
-        setTimeout(function(){ 
-          URL.revokeObjectURL(url);
-          localStorage.removeItem('_export_data');
-          localStorage.removeItem('_export_filename');
-          localStorage.removeItem('_export_flag');
-        }, 500);
-        
-        // Show message
-        showNotif('✓ Download started!', 'OK');
-        
-        // Close the tab after a delay
-        setTimeout(function(){
-          window.close();
-        }, 2000);
-        
-      }catch(err){
-        console.error('Download error:', err);
-        showNotif('Download failed: ' + err.message, '!');
-        localStorage.removeItem('_export_flag');
-      }
-    }
-  }
-}
-
-// Call this immediately (don't wait for DOMContentLoaded)
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', function(){
-    setTimeout(handleExportParameter, 100);
-  });
-} else {
-  setTimeout(handleExportParameter, 100);
 }
 
 // Keep old exportDataFile as alias
