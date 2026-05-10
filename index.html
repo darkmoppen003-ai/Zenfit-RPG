@@ -4596,24 +4596,29 @@ function exportDataFileBrowser(){
   }
 }
 
-// METHOD 3: ANDROID EXPORT (Opens Chrome to handle download)
+// METHOD 3: ANDROID EXPORT (Uses localStorage to pass data - more reliable)
 function exportDataFileAndroid(){
   try{
     var json = JSON.stringify(S, null, 2);
     var filename = 'zenfit_backup_' + getTodayStr() + '.json';
     
-    // Encode the data as URL parameter
-    var encodedData = encodeURIComponent(json);
+    // Store the data in localStorage temporarily
+    localStorage.setItem('_export_data', json);
+    localStorage.setItem('_export_filename', filename);
+    localStorage.setItem('_export_flag', 'true');
     
-    // Create special export URL
-    // This will open in real browser (Chrome) which handles downloads properly
-    var exportUrl = window.location.origin + window.location.pathname + 
-                    '?export=' + encodedData + '&filename=' + encodeURIComponent(filename);
+    // Create a simple URL (no data in URL, just a flag)
+    var exportUrl = window.location.origin + window.location.pathname + '?export_action=download';
     
-    // Open in new tab/browser (uses device's default browser - usually Chrome)
+    // Open in new browser tab
     window.open(exportUrl, '_blank');
     
     showNotif('Opening browser for export...', 'OK');
+    
+    // Clear flag after 10 seconds (in case user cancels)
+    setTimeout(function(){
+      localStorage.removeItem('_export_flag');
+    }, 10000);
     
   }catch(err){
     showNotif('Android export error: ' + err.message, '!');
@@ -4621,48 +4626,61 @@ function exportDataFileAndroid(){
   }
 }
 
-// Handle export when page loads with ?export= parameter
+// Handle export when page loads with ?export_action= parameter
 function handleExportParameter(){
   var urlParams = new URLSearchParams(window.location.search);
-  var exportData = urlParams.get('export');
-  var filename = urlParams.get('filename') || 'zenfit_backup.json';
+  var exportAction = urlParams.get('export_action');
   
-  if(exportData){
-    // Decode the data
-    var json = decodeURIComponent(exportData);
+  if(exportAction === 'download'){
+    // Check if data is in localStorage
+    var exportData = localStorage.getItem('_export_data');
+    var filename = localStorage.getItem('_export_filename') || 'zenfit_backup.json';
+    var exportFlag = localStorage.getItem('_export_flag');
     
-    try{
-      // Create blob and download
-      var blob = new Blob([json], {type: 'application/json'});
-      var url = URL.createObjectURL(blob);
-      
-      var link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      link.click();
-      
-      // Clean up
-      setTimeout(function(){ URL.revokeObjectURL(url); }, 100);
-      
-      // Show message
-      showNotif('✓ Download started in Chrome!', 'OK');
-      
-      // Optional: Close the tab after a delay
-      setTimeout(function(){
-        window.close();
-      }, 1500);
-      
-    }catch(err){
-      console.error('Download error:', err);
-      showNotif('Download failed: ' + err.message, '!');
+    if(exportData && exportFlag){
+      try{
+        // Create blob and download
+        var blob = new Blob([exportData], {type: 'application/json'});
+        var url = URL.createObjectURL(blob);
+        
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        
+        // Clean up
+        setTimeout(function(){ 
+          URL.revokeObjectURL(url);
+          localStorage.removeItem('_export_data');
+          localStorage.removeItem('_export_filename');
+          localStorage.removeItem('_export_flag');
+        }, 500);
+        
+        // Show message
+        showNotif('✓ Download started!', 'OK');
+        
+        // Close the tab after a delay
+        setTimeout(function(){
+          window.close();
+        }, 2000);
+        
+      }catch(err){
+        console.error('Download error:', err);
+        showNotif('Download failed: ' + err.message, '!');
+        localStorage.removeItem('_export_flag');
+      }
     }
   }
 }
 
-// Call this when page loads
-document.addEventListener('DOMContentLoaded', function(){
-  handleExportParameter();
-});
+// Call this immediately (don't wait for DOMContentLoaded)
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(handleExportParameter, 100);
+  });
+} else {
+  setTimeout(handleExportParameter, 100);
+}
 
 // Keep old exportDataFile as alias
 function exportDataFile(){
