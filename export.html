@@ -50,7 +50,7 @@
 <div class="container">
   <div class="spinner"></div>
   <h2>Processing Export...</h2>
-  <p>Please wait while your backup is being prepared.</p>
+  <p>Preparing your backup for download.</p>
 </div>
 <script>
 try{
@@ -78,7 +78,7 @@ try{
     a.click();
     setTimeout(function(){
       document.body.innerHTML =
-        "<div class='container'><h2>✓ Success!</h2><p>Your backup has been downloaded to the Downloads folder.</p></div>";
+        "<div class='container'><h2>✓ Success!</h2><p>Your backup has been downloaded to the Downloads folder. You can close this tab.</p></div>";
     }, 1000);
   }
 }catch(err){
