@@ -1100,14 +1100,9 @@ function loadState(){
     }
   }catch(e){console.warn('ZenFit loadState error:',e);}
   
-  // Brand new user - enable tutorial
-  const fresh = defaultState();
-  fresh.featureFlags.tutorial_main = true;
-  return fresh;
-} 
   // This is a fresh user
   const fresh = defaultState();
-  fresh.featureFlags.tutorial_main = true; // Only enable for completely new install
+  fresh.featureFlags.tutorial_main = true;
   return fresh;
 }
 
