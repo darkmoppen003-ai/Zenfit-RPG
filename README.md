@@ -7,6 +7,8 @@ WEBSITE : https://darkmoppen003-ai.github.io/zenfit/
 here is an apk file for those who want to use it as an app 
 https://drive.google.com/file/d/1JaKQuEWZyRfaw_nn_UYGB3-BRcK0M64t/view?usp=sharing
 
+lite apk : https://drive.google.com/file/d/1UR4XsoVRzaZ5Vah7Uethx-aa6z8Sh1Vz/view?usp=sharing
+
 # 🧠 ZenFit – Self-Hosted Habit & Lifestyle Tracker
 
 A self-hosted, all-in-one habit tracking and lifestyle management app built for personal use.
